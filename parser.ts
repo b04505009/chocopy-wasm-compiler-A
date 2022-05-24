@@ -382,14 +382,45 @@ export function traverseType(c : TreeCursor, s : string) : Type {
   }
 }
 
-export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter<null>> {
+export function traverseParameters(c : TreeCursor, s : string) : [Array<Parameter<null>>, number, number] {
   c.firstChild();  // Focuses on open paren
   const parameters = [];
+  var index = -1
+  var arg_index = undefined
+  var kwarg_index = undefined
   let exist_name = new Set<string>();
   c.nextSibling(); // Focuses on a VariableName
   var default_start = false
   while(c.type.name !== ")") {
+    index += 1
     let name = s.substring(c.from, c.to);// variablemName
+    if (name ==='*'){
+      if (arg_index != undefined){
+        throw new SyntaxError("duplicate *")
+      }
+      arg_index = index
+      c.nextSibling();
+      const arg_name = s.substring(c.from, c.to)
+      parameters.push({name: arg_name, type: null});
+      c.nextSibling();// focus on ,
+      c.nextSibling();// focus on next parameter
+      continue
+    }
+    else if(name==='**'){
+      if (kwarg_index != undefined){
+        throw new SyntaxError("duplicate **")
+      }
+      kwarg_index = index
+      c.nextSibling();
+      const kwarg_name = s.substring(c.from, c.to)
+      if (c.type.name ==='⚠'){
+        throw new SyntaxError("too many *")
+      }
+      parameters.push({name: kwarg_name, type: null});
+      c.nextSibling();// focus on ,
+      c.nextSibling();// focus on next parameter
+      continue
+    }
     if (exist_name.has(name)){
       throw new SyntaxError("duplicate argument")
     }
@@ -398,7 +429,7 @@ export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter
     }
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
     let nextTagName = c.type.name; // NOTE(joe): a bit of a hack so the next line doesn't if-split
-    if(nextTagName !== "TypeDef") { throw new Error("Missed type annotation for parameter " + name)};
+    if(nextTagName !== "TypeDef" && nextTagName !== "TypeDef") { throw new SyntaxError("Missed type annotation for parameter " + name)};
     c.firstChild();  // Enter TypeDef
     c.nextSibling(); // Focuses on type itself
     let typ = traverseType(c, s);
@@ -424,7 +455,10 @@ export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter
     }
   }
   c.parent();       // Pop to ParamList
-  return parameters;
+  if(kwarg_index!= undefined && kwarg_index!= parameters.length - 1){
+      throw new SyntaxError("kwarg should be the last of the argument")
+  }
+  return [parameters, arg_index, kwarg_index];
 }
 export function traverseVarInit(c : TreeCursor, s : string) : VarInit<null> {
   c.firstChild(); // go to name
@@ -453,7 +487,10 @@ export function traverseFunDef(c : TreeCursor, s : string) : FunDef<null> {
   c.nextSibling(); // Focus on name of function
   var name = s.substring(c.from, c.to);
   c.nextSibling(); // Focus on ParamList
-  var parameters = traverseParameters(c, s)
+  var parameters_arg_kwarg = traverseParameters(c, s)
+  var parameters = parameters_arg_kwarg[0]
+  const arbarg_idx = parameters_arg_kwarg[1]
+  const kwarg_idx = parameters_arg_kwarg[2]
   c.nextSibling(); // Focus on Body or TypeDef
   let ret : Type = NONE;
   if(c.type.name === "TypeDef") {
@@ -486,7 +523,7 @@ export function traverseFunDef(c : TreeCursor, s : string) : FunDef<null> {
   c.parent();      // Pop to Body
   // console.log("Before pop to def: ", c.type.name);
   c.parent();      // Pop to FunctionDefinition
-  return { name, parameters, ret, inits, body }
+  return { name, parameters, ret, inits, body,arbarg_idx, kwarg_idx}
 }
 
 export function traverseClass(c : TreeCursor, s : string) : Class<null> {
