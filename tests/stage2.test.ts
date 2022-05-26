@@ -2,7 +2,7 @@ import { assertPrint, assertFail, assertTCFail, assertTC, assertParseFail} from 
 
 
 
-describe("Stage1 define args syntax tests", ()=>{
+describe("Stage2 define args syntax tests", ()=>{
   //1 
   var funcdef= 
   `
@@ -66,4 +66,39 @@ describe("Stage1 define args syntax tests", ()=>{
   `
   assertParseFail("func: unexpeceted *? error", funcdef);
 
+})
+
+describe("Stage2 correct order of args", ()=>{
+  //1 
+  var funcdef= 
+  `
+  def f(x:int, *args, **kwargs):
+    print(x)
+  f(123)
+  `
+  assertPrint("func: arg order test1", funcdef, [`123`]);
+
+  var funcdef= 
+  `
+  def f(*args, x:int, **kwargs):
+    print(x)
+  f(123)
+  `
+  assertPrint("func: arg order test2", funcdef, [`123`]);
+
+  var funcdef= 
+  `
+  def f(x:int, **kwargs):
+    print(x)
+  f(123)
+  `
+  assertPrint("func: arg order test3", funcdef, [`123`]);
+
+  var funcdef= 
+  `
+  def f(x:int, *args):
+    print(x)
+  f(123)
+  `
+  assertPrint("func: arg order test3", funcdef, [`123`]);
 })
