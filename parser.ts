@@ -381,7 +381,14 @@ export function traverseType(c : TreeCursor, s : string) : Type {
     default: return CLASS(name);
   }
 }
-
+export function traverseArg_Kwarg(name:string):Type{
+  if (name=='*'){
+    return {tag: "tuple", contentTypes: Array<null>() }
+  }
+  else if(name=='**'){
+    return {tag: "dict", key: null, value: null }
+  }
+}
 export function traverseParameters(c : TreeCursor, s : string) : [Array<Parameter<null>>, number, number] {
   c.firstChild();  // Focuses on open paren
   const parameters = [];
@@ -401,7 +408,7 @@ export function traverseParameters(c : TreeCursor, s : string) : [Array<Paramete
       arg_index = index
       c.nextSibling();
       const arg_name = s.substring(c.from, c.to)
-      parameters.push({name: arg_name, type: null});
+      parameters.push({name: arg_name, type: traverseArg_Kwarg(name)});
       c.nextSibling();// focus on ,
       c.nextSibling();// focus on next parameter
       continue
@@ -416,7 +423,8 @@ export function traverseParameters(c : TreeCursor, s : string) : [Array<Paramete
       if (c.type.name ==='⚠'){
         throw new SyntaxError("too many *")
       }
-      parameters.push({name: kwarg_name, type: null});
+      //Parameter<A> = { name: string, type: Type, value?: Expr<A> }
+      parameters.push({name: kwarg_name, type:  traverseArg_Kwarg(name) });
       c.nextSibling();// focus on ,
       c.nextSibling();// focus on next parameter
       continue
